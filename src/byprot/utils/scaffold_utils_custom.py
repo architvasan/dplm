@@ -195,13 +195,13 @@ class Scaffolding():
     single_res: list[str]
     scaffold_left: object
     scaffold_right: object
-    motif_name_mapping: object
+    motif_name_mapping: object # never used
     scaffold_interval: object
     total_length: object
     start_idx_dict: object
     end_idx_dict: object
     chain_dict: object
-
+    pdb_clean_path_str: str
     def get_intervals(list, single_res_domain=False):
         """Given a list (Tensor) of non-masked residues get new start and end index
         for motif placed in scaffold."""
@@ -227,10 +227,10 @@ class Scaffolding():
         start_idxs = self.start_idx_dict[pdb]
         end_idxs = self.end_idx_dict[pdb]
         pdb_clean_path = os.path.join(
-            "data-bin/scaffolding-pdbs/" + str(pdb) + "_clean.pdb"
+            self.pdb_clean_path_str + str(pdb) + "_clean.pdb"
         )
     
-        chain = chain_dict[pdb]
+        chain = self.chain_dict[pdb]
         chain_ids = [chain]
         print("WARNING: USING CHAIN", chain, "FROM PDB FILE")
         structure = esm.inverse_folding.util.load_structure(pdb_clean_path, chain_ids)
@@ -250,8 +250,8 @@ class Scaffolding():
                 motif += sequence[start_idxs[i] : end_idxs[i]]
                 if i < (len(start_idxs) - 1):
                     # spacer = start_idxs[i+1] - end_idxs[i]
-                    interval_start = scaffold_interval[ori_pdb][i][0]
-                    interval_end = scaffold_interval[ori_pdb][i][1]
+                    interval_start = self.scaffold_interval[ori_pdb][i][0]
+                    interval_end = self.scaffold_interval[ori_pdb][i][1]
                     spacer = random.randint(interval_start, interval_end)
                     motif += ["<mask>"] * spacer
         else:
@@ -262,8 +262,8 @@ class Scaffolding():
     
     
     def get_motif_dplm2(pdb_name, ori_pdb_name, motif_seq, mask_token, spacer_list=None):
-        start_idxs = start_idx_dict[pdb_name]
-        end_idxs = end_idx_dict[pdb_name]
+        start_idxs = self.start_idx_dict[pdb_name]
+        end_idxs = self.end_idx_dict[pdb_name]
         ret_spacer_list = []
         assert len(start_idxs) == len(end_idxs)
     
@@ -274,8 +274,8 @@ class Scaffolding():
                 motif += motif_seq[start_idxs[i] : end_idxs[i]]
                 if i < (len(start_idxs) - 1):
                     if spacer_list is None:
-                        interval_start = scaffold_interval[ori_pdb_name][i][0]
-                        interval_end = scaffold_interval[ori_pdb_name][i][1]
+                        interval_start = self.scaffold_interval[ori_pdb_name][i][0]
+                        interval_end = self.scaffold_interval[ori_pdb_name][i][1]
                         spacer = random.randint(interval_start, interval_end)
                         ret_spacer_list.append(spacer)
                     else:
@@ -330,24 +330,24 @@ class Scaffolding():
             length_compatible = False
             while length_compatible is False:
                 scaffold_left_length = random.randint(
-                    scaffold_left[ori_pdb][0], scaffold_left[ori_pdb][1]
+                    self.scaffold_left[ori_pdb][0], self.scaffold_left[ori_pdb][1]
                 )
     
                 motif = get_motif_dplm(pdb=pdb, ori_pdb=ori_pdb)
                 motif_overall_length = len(motif)
     
-                if total_length[ori_pdb] != -1:
+                if self.total_length[ori_pdb] != -1:
                     current_length_range = [
                         scaffold_left_length
                         + motif_overall_length
-                        + scaffold_right[ori_pdb][0],
+                        + self.scaffold_right[ori_pdb][0],
                         scaffold_left_length
                         + motif_overall_length
-                        + scaffold_right[ori_pdb][1],
+                        + self.scaffold_right[ori_pdb][1],
                     ]
                     total_length_range = [
-                        total_length[ori_pdb][0],
-                        total_length[ori_pdb][1],
+                        self.total_length[ori_pdb][0],
+                        self.total_length[ori_pdb][1],
                     ]
                     length_range = [
                         max(current_length_range[0], total_length_range[0]),
@@ -363,7 +363,7 @@ class Scaffolding():
                 else:
                     length_compatible = True
                     scaffold_right_length = random.randint(
-                        scaffold_right[ori_pdb][0], scaffold_right[ori_pdb][1]
+                        self.scaffold_right[ori_pdb][0], self.scaffold_right[ori_pdb][1]
                     )
     
                 overall_length = (
@@ -389,7 +389,7 @@ class Scaffolding():
         }
         batch = utils.recursive_to(batch, device)
     
-        single_res_domain = pdb in single_res
+        single_res_domain = pdb in self.single_res
     
         start_idxs_list = []
         end_idxs_list = []
@@ -441,7 +441,7 @@ class Scaffolding():
             length_compatible = False
             while length_compatible is False:
                 scaffold_left_length = random.randint(
-                    scaffold_left[ori_pdb][0], scaffold_left[ori_pdb][1]
+                    self.scaffold_left[ori_pdb][0], self.scaffold_left[ori_pdb][1]
                 )
     
                 motif_aa_seq, spacer_list = get_motif_dplm2(
@@ -452,18 +452,18 @@ class Scaffolding():
                 )
                 motif_overall_length = len(motif_aa_seq)
     
-                if total_length[ori_pdb] != -1:
+                if self.total_length[ori_pdb] != -1:
                     current_length_range = [
                         scaffold_left_length
                         + motif_overall_length
-                        + scaffold_right[ori_pdb][0],
+                        + self.scaffold_right[ori_pdb][0],
                         scaffold_left_length
                         + motif_overall_length
-                        + scaffold_right[ori_pdb][1],
+                        + self.scaffold_right[ori_pdb][1],
                     ]
                     total_length_range = [
-                        total_length[ori_pdb][0],
-                        total_length[ori_pdb][1],
+                        self.total_length[ori_pdb][0],
+                        self.total_length[ori_pdb][1],
                     ]
                     length_range = [
                         max(current_length_range[0], total_length_range[0]),
@@ -479,7 +479,7 @@ class Scaffolding():
                 else:
                     length_compatible = True
                     scaffold_right_length = random.randint(
-                        scaffold_right[ori_pdb][0], scaffold_right[ori_pdb][1]
+                        self.scaffold_right[ori_pdb][0], self.scaffold_right[ori_pdb][1]
                     )
     
                 overall_length = (
@@ -587,7 +587,7 @@ class Scaffolding():
         aa_bos_token = tokenizer.aa_cls_token
         aa_eos_token = tokenizer.aa_eos_token
     
-        single_res_domain = pdb in single_res
+        single_res_domain = pdb in self.single_res
     
         start_idxs_list = []
         end_idxs_list = []
