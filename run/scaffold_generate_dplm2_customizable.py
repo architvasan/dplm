@@ -11,27 +11,53 @@ from peft.peft_model import PeftModel
 from byprot.models.dplm2.dplm2 import MultimodalDiffusionProteinLanguageModel
 from byprot.utils.scaffold_utils import *
 from generate_dplm2 import save_fasta
-
+from byprot.datamodules.pdb_dataset.pdb_datamodule import collate_fn
+from byprot.utils import recursive_to
+from byprot.utils.protein.evaluator_dplm2 import load_from_pdb
 
 @torch.no_grad()
-def generate(args, saveto):
+def generate(motif_seq, inp_pdb, args, saveto):
     model = MultimodalDiffusionProteinLanguageModel.from_pretrained(
         args.model_name
     )
     tokenizer = model.tokenizer
+    struct_tokenizer = dplm2.struct_tokenizer
     model = model.eval()
     model = model.cuda()
     device = next(model.parameters()).device
     if issubclass(type(model.net), PeftModel):
         model.net = model.net.merge_and_unload()
 
-    # Read motif fasta file
-    with open(args.motif_aa, "r") as f:
-        fasta_file = fasta.FastaFile.read(f)
-        motif_aa_seq = dict(fasta_file.items())
-    with open(args.motif_struct, "r") as f:
-        fasta_file = fasta.FastaFile.read(f)
-        motif_struct_seq = dict(fasta_file.items())
+    feats = load_from_pdb(pdb_path, process_chain=struct_tokenizer.process_chain)
+    batch_data = [feats]
+    batch = collate_fn(batch_data)
+    batch = recursive_to(batch, device=dplm2.device)
+    
+    struct_ids = struct_tokenizer.tokenize(
+            batch["all_atom_positions"],
+            batch["res_mask"],
+            batch["seq_length"]
+        )
+    struct_seq = struct_tokenizer.struct_ids_to_seq(
+        struct_ids.cpu().tolist()[0]
+    )
+
+    if aa_sequence is None:
+        from byprot.datamodules.pdb_dataset import utils as du
+        aa_seq = du.aatype_to_seq(batch["aatype"].cpu().tolist()[0])
+    else:
+        aa_seq = aa_sequence
+
+
+
+
+    ## Read motif fasta file
+    #with open(args.motif_aa, "r") as f:
+    #    fasta_file = fasta.FastaFile.read(f)
+    #    motif_aa_seq = dict(fasta_file.items())
+    #with open(args.motif_struct, "r") as f:
+    #    fasta_file = fasta.FastaFile.read(f)
+    #    motif_struct_seq = dict(fasta_file.items())
 
     for ori_pdb_name, pdb_name in motif_name_mapping.items():
         struct_seq = motif_struct_seq[pdb_name]
